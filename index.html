@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Fanzz.vip</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        
+        * { 
+            margin: 0; padding: 0; box-sizing: border-box; 
+            -webkit-tap-highlight-color: transparent; 
+            touch-action: pan-x pan-y;
+        }
+        
+        body {
+            background-color: #020202; color: #ffffff;
+            font-family: 'Inter', sans-serif;
+            display: flex; justify-content: center; align-items: center;
+            height: 100vh; width: 100vw; overflow: hidden;
+        }
+
+        /* Dashboard Utama - Akan terkunci jika overlay muncul */
+        .main-dashboard {
+            text-align: center; transition: 0.8s ease;
+            filter: blur(15px); opacity: 0.2; 
+            pointer-events: none; /* Terkunci secara default */
+        }
+        
+        /* Aktif jika tidak ada verifikasi yang diminta admin */
+        .main-dashboard.active { filter: blur(0); opacity: 1; pointer-events: auto; }
+
+        .premium-card {
+            background: #0a0a0a; border: 1px solid #1a1a1a;
+            border-radius: 24px; padding: 40px; width: 340px;
+        }
+
+        .btn-stack { display: flex; flex-direction: column; gap: 15px; margin-top: 25px; }
+        .btn {
+            padding: 18px; border-radius: 15px; font-weight: 700;
+            text-transform: uppercase; font-size: 13px;
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+            cursor: pointer; border: none; transition: 0.3s;
+        }
+        .btn-ff { background: #111; color: #fff; border: 1px solid #333; }
+
+        /* Overlay System (Pelindung Layar) */
+        .overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.98);
+            display: flex; justify-content: center; align-items: center;
+            z-index: 9999; transition: 0.4s;
+            pointer-events: auto; /* Mengambil kontrol klik */
+        }
+        
+        .overlay.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+
+        .popup {
+            background: #0d0d0d; border: 1px solid #222;
+            padding: 35px; border-radius: 28px; width: 320px; text-align: center;
+            box-shadow: 0 0 30px rgba(255, 255, 255, 0.05);
+        }
+
+        #timerBox { font-size: 28px; font-weight: 800; margin: 15px 0; color: #ff3e3e; }
+
+        .slider-track {
+            position: relative; background: #050505; height: 60px;
+            border-radius: 15px; border: 1px solid #1a1a1a;
+            margin-top: 20px; display: flex; align-items: center; justify-content: center;
+            overflow: hidden; opacity: 0.3; pointer-events: none;
+        }
+        .slider-track.unlocked { opacity: 1; pointer-events: auto; }
+
+        .slider-thumb {
+            position: absolute; left: 5px; width: 50px; height: 50px;
+            background: #fff; border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            color: #000; cursor: grab; z-index: 10;
+        }
+    </style>
+</head>
+<body oncontextmenu="return false;">
+
+    <div class="overlay" id="overlay">
+        <div class="popup">
+            <i class="fas fa-shield-virus" style="font-size: 40px; color: #fff; margin-bottom: 15px;"></i>
+            <h3 id="pTitle">MENGHUBUNGKAN...</h3>
+            <div id="timerBox">--</div>
+            <p id="pDesc" style="font-size: 11px; color: #444; letter-spacing: 1px;">SISTEM KEAMANAN AKTIF</p>
+            
+            <div class="slider-track" id="track">
+                <span id="sText" style="font-size: 10px; color: #333; font-weight: 800;">SLIDE TO UNLOCK</span>
+                <div class="slider-thumb" id="thumb"><i class="fas fa-lock"></i></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-dashboard" id="dashboard">
+        <div class="premium-card">
+            <h2 style="letter-spacing: 2px;">FANZZ PANEL</h2>
+            <div class="btn-stack">
+                <button class="btn btn-ff" id="btnFF"><i class="fas fa-bolt"></i> FFKIPAS</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyDRqsElsU40oW0AjaG51AUJFOhqlT3YJxs",
+            authDomain: "game-online-a0219.firebaseapp.com",
+            databaseURL: "https://game-online-a0219-default-rtdb.firebaseio.com",
+            projectId: "game-online-a0219",
+            storageBucket: "game-online-a0219.firebasestorage.app",
+            messagingSenderId: "702844089437",
+            appId: "1:702844089437:web:1deedf10241799761209b4"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        let adminData = {};
+        let isVerified = false;
+
+        // Listener Real-time
+        db.ref('admin_settings').on('value', (snapshot) => {
+            adminData = snapshot.val() || {};
+            
+            // 1. Jika Admin Aktifkan Force Update
+            if (adminData.alert_update) {
+                isVerified = false;
+                dashboard.classList.remove('active');
+                showPopup("UPDATE TERSEDIA", "Segera gunakan versi terbaru!");
+                track.style.display = "none"; // Hilangkan slider agar terkunci total
+            } 
+            // 2. Jika Admin Aktifkan Hide User Popup (ON) -> Maka User WAJIB Verifikasi/Muncul Popup
+            else if (adminData.hide_user) {
+                isVerified = false;
+                dashboard.classList.remove('active');
+                showPopup("VERIFIKASI", "Geser untuk mengakses download");
+                track.style.display = "flex";
+            }
+            // 3. Jika Admin Matikan Hide User (OFF) -> Langsung Masuk Tanpa Popup
+            else {
+                isVerified = true;
+                dashboard.classList.add('active');
+                overlay.classList.add('hidden');
+            }
+        });
+
+        const thumb = document.getElementById('thumb'), track = document.getElementById('track'),
+              overlay = document.getElementById('overlay'), dashboard = document.getElementById('dashboard'),
+              timerBox = document.getElementById('timerBox');
+
+        function showPopup(title, desc) {
+            document.getElementById('pTitle').innerText = title;
+            document.getElementById('pDesc').innerText = desc;
+            overlay.classList.remove('hidden');
+            
+            let count = parseInt(adminData.time) || 10;
+            timerBox.innerText = count;
+            track.classList.remove('unlocked');
+
+            let cd = setInterval(() => {
+                count--;
+                timerBox.innerText = count;
+                if(count <= 0) {
+                    clearInterval(cd);
+                    timerBox.innerText = "READY";
+                    track.classList.add('unlocked');
+                }
+            }, 1000);
+        }
+
+        // Slider Logic
+        let dragging = false, startX = 0, limit = 0;
+        thumb.ontouchstart = (e) => {
+            dragging = true; startX = e.touches[0].clientX;
+            limit = track.offsetWidth - thumb.offsetWidth - 10;
+        };
+        window.ontouchmove = (e) => {
+            if(!dragging) return;
+            let delta = e.touches[0].clientX - startX;
+            if(delta < 0) delta = 0; if(delta > limit) delta = limit;
+            thumb.style.transform = `translateX(${delta}px)`;
+        };
+        window.ontouchend = () => {
+            if(!dragging) return; dragging = false;
+            const pos = new WebKitCSSMatrix(window.getComputedStyle(thumb).transform).m41;
+            if(pos >= limit - 5) {
+                isVerified = true;
+                overlay.classList.add('hidden');
+                dashboard.classList.add('active');
+                thumb.style.transform = "translateX(0px)";
+            } else {
+                thumb.style.transition = "0.3s";
+                thumb.style.transform = "translateX(0px)";
+                setTimeout(() => thumb.style.transition = "none", 300);
+            }
+        };
+
+        document.getElementById('btnFF').onclick = () => {
+            window.location.href = adminData.url;
+        };
+    </script>
+</body>
+</html>
